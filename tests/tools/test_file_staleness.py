@@ -65,7 +65,20 @@ def _make_fake_ops(read_content="hello\n", file_size=6):
     fake.read_file = lambda path, offset=1, limit=500: _FakeReadResult(
         content=read_content, total_lines=1, file_size=file_size,
     )
-    fake.write_file = lambda path, content: _FakeWriteResult()
+
+    def _fake_write(path, content):
+        # Actually create the file on disk so post-write verification
+        # (_verify_file_written) finds it — mirrors a real write. Without
+        # this the verification would emit a spurious "could not be
+        # verified" warning for paths the fake never created.
+        try:
+            with open(path, "w") as _f:
+                _f.write(content)
+        except OSError:
+            pass
+        return _FakeWriteResult()
+
+    fake.write_file = _fake_write
     fake.patch_replace = lambda path, old, new, replace_all=False: _FakePatchResult()
     return fake
 
